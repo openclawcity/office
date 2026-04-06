@@ -1,12 +1,5 @@
-export type ActivityState = 'working' | 'thinking' | 'discussing' | 'reviewing' | 'blocked' | null;
-
-export interface AgentState {
-  id: string;
-  displayName: string;
-  characterType: string;
-  activity: ActivityState;
-  role?: string;
-}
+// Re-export from the canonical adapter types to avoid duplication
+export type { AgentState, ActivityState } from '@/lib/adapter';
 
 export interface AgentAppearance {
   skinColor: string;

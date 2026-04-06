@@ -1,8 +1,6 @@
 'use client';
 import { useEffect, useRef, useCallback } from 'react';
-import type { OfficeAdapter } from '@/lib/adapter';
-import type { AgentState } from '../core/types';
-import type { AgentState as AdapterAgentState } from '@/lib/adapter';
+import type { OfficeAdapter, AgentState } from '@/lib/adapter';
 
 interface AgentSyncProps {
   adapter: OfficeAdapter;
@@ -10,23 +8,12 @@ interface AgentSyncProps {
   onAgentsUpdate: (agents: AgentState[]) => void;
 }
 
-/** Maps adapter AgentState to 3D AgentState (identical shape, but keeps types decoupled). */
-function toInternalAgent(a: AdapterAgentState): AgentState {
-  return {
-    id: a.id,
-    displayName: a.displayName,
-    characterType: a.characterType,
-    activity: a.activity,
-    role: a.role,
-  };
-}
-
 export default function AgentSync({ adapter, officeId, onAgentsUpdate }: AgentSyncProps) {
   const callbackRef = useRef(onAgentsUpdate);
   callbackRef.current = onAgentsUpdate;
 
-  const stableEmit = useCallback((agents: AdapterAgentState[]) => {
-    callbackRef.current(agents.map(toInternalAgent));
+  const stableEmit = useCallback((agents: AgentState[]) => {
+    callbackRef.current(agents);
   }, []);
 
   useEffect(() => {

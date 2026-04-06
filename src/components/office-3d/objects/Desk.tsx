@@ -1,7 +1,7 @@
 'use client';
 
 import { Billboard, Text } from '@react-three/drei';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 
 interface DeskProps {
   position: [number, number, number];
@@ -50,6 +50,11 @@ const ARM_LENGTH = 0.2;
 const KEY_ROWS = [-0.032, -0.011, 0.011, 0.032];
 
 export default function Desk({ position, label, accentColor = '#00d4ff', rotation = 0, onDeskClick }: DeskProps) {
+  // Reset cursor on unmount to prevent cursor leak if unmounted while hovered
+  useEffect(() => {
+    return () => { document.body.style.cursor = 'default'; };
+  }, []);
+
   const clutter = useMemo(() => {
     const rand = seedRandom(label);
     const stickyCount = 2 + Math.floor(rand() * 2);

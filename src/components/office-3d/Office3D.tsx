@@ -12,8 +12,7 @@ import RestArea from './objects/RestArea';
 import FillerFurniture from './objects/FillerFurniture';
 import VoxelAgent from './agents/VoxelAgent';
 import { generateLayout } from './core/constants';
-import type { AgentState } from './core/types';
-import type { OfficeAdapter } from '@/lib/adapter';
+import type { OfficeAdapter, AgentState } from '@/lib/adapter';
 import type { OfficeConfig } from '@/lib/office-config';
 
 interface Office3DProps {
@@ -46,20 +45,20 @@ export default function Office3D({ config, adapter, officeId, onExit, onDeskClic
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onExit]);
 
-  function getTargetPosition(agent: AgentState, index: number): [number, number, number] {
+  const deskKeys = useMemo(() => Object.keys(layout.workstations), [layout]);
+
+  const getTargetPosition = useCallback((agent: AgentState, index: number): [number, number, number] => {
     if (agent.activity === 'working' || agent.activity === 'thinking' || agent.activity === 'discussing') {
       const station = layout.roleToStation[agent.displayName];
       if (station && layout.workstations[station]) {
         return layout.workstations[station];
       }
-      // Assign to desk by index if no name mapping
-      const deskKeys = Object.keys(layout.workstations);
       if (index < deskKeys.length) {
         return layout.workstations[deskKeys[index]];
       }
     }
     return layout.restPositions[index % layout.restPositions.length];
-  }
+  }, [layout, deskKeys]);
 
   const workstationPositions = useMemo(
     () => Object.values(layout.workstations),

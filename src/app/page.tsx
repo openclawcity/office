@@ -31,8 +31,8 @@ export default function Home() {
     };
   }, []);
 
-  const handleDeskClick = useCallback((deskId: string, agentId?: string) => {
-    console.log('Desk clicked:', deskId, 'agent:', agentId);
+  const handleDeskClick = useCallback((_deskId: string, _agentId?: string) => {
+    // Future: open agent card panel
   }, []);
 
   return (
