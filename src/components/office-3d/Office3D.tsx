@@ -1,6 +1,6 @@
 'use client';
 import { Canvas } from '@react-three/fiber';
-import { Suspense, useState, useCallback, useEffect, useMemo } from 'react';
+import { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import OfficeLighting from './systems/OfficeLighting';
 import OfficeCamera from './systems/OfficeCamera';
@@ -26,11 +26,13 @@ interface Office3DProps {
 
 export default function Office3D({ config, adapter, officeId, onExit, onDeskClick }: Office3DProps) {
   const [agents, setAgents] = useState<AgentState[]>([]);
+  const agentsRef = useRef<AgentState[]>([]);
 
   const layout = useMemo(() => generateLayout(config), [config]);
   const accentColor = config.theme?.accentColor || '#00d4ff';
 
   const handleAgentsUpdate = useCallback((updated: AgentState[]) => {
+    agentsRef.current = updated;
     setAgents(updated);
   }, []);
 
@@ -109,7 +111,7 @@ export default function Office3D({ config, adapter, officeId, onExit, onDeskClic
               label={layout.stationLabels[key] || key}
               accentColor={accentColor}
               onDeskClick={() => {
-                const agent = agents.find(a => layout.roleToStation[a.displayName] === key);
+                const agent = agentsRef.current.find(a => layout.roleToStation[a.displayName] === key);
                 onDeskClick?.(key, agent?.id);
               }}
             />

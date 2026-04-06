@@ -42,13 +42,23 @@ export interface OfficeLayout {
 }
 
 export function generateLayout(config: OfficeConfig): OfficeLayout {
-  const roomWidth = config.roomSize?.width || DEFAULT_ROOM_WIDTH;
-  const roomDepth = config.roomSize?.depth || DEFAULT_ROOM_DEPTH;
-  const roomHeight = config.roomSize?.height || DEFAULT_ROOM_HEIGHT;
+  const roomWidth = Math.max(config.roomSize?.width || DEFAULT_ROOM_WIDTH, 4);
+  const roomDepth = Math.max(config.roomSize?.depth || DEFAULT_ROOM_DEPTH, 4);
+  const roomHeight = Math.max(config.roomSize?.height || DEFAULT_ROOM_HEIGHT, 1);
   const desks = config.desks;
 
-  const cols = Math.min(desks.length, 3);
-  const rows = Math.ceil(desks.length / cols);
+  // Guard: zero or negative desks
+  if (desks.length === 0) {
+    const restPositions: [number, number, number][] = Array.from(
+      { length: 6 },
+      (_, i) => [(i % 3 - 1) * 1.5, 0, 3.2 + Math.floor(i / 3) * 0.6],
+    );
+    return { workstations: {}, roleToStation: {}, stationLabels: {}, restPositions, roomWidth, roomDepth, roomHeight };
+  }
+
+  const clamped = desks.slice(0, 12); // cap at 12 desks to prevent extreme layouts
+  const cols = Math.min(clamped.length, 3);
+  const rows = Math.ceil(clamped.length / cols);
 
   // Work area is from back wall to partition (z from -roomDepth/2 to PARTITION_Z)
   const workZoneStart = -roomDepth / 2 + 2;
@@ -59,7 +69,7 @@ export function generateLayout(config: OfficeConfig): OfficeLayout {
   const roleToStation: Record<string, string> = {};
   const stationLabels: Record<string, string> = {};
 
-  desks.forEach((desk, i) => {
+  clamped.forEach((desk, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
 

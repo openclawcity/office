@@ -33,6 +33,7 @@ export default function OfficeCamera({ roomWidth, roomDepth }: OfficeCameraProps
     return () => {
       window.removeEventListener('keydown', onDown);
       window.removeEventListener('keyup', onUp);
+      keysRef.current.clear();
     };
   }, []);
 
@@ -40,17 +41,19 @@ export default function OfficeCamera({ roomWidth, roomDepth }: OfficeCameraProps
     const keys = keysRef.current;
     if (keys.size === 0 || !controlsRef.current) return;
 
-    const delta = new THREE.Vector3(0, 0, 0);
-    if (keys.has('w')) delta.z -= PAN_SPEED;
-    if (keys.has('s')) delta.z += PAN_SPEED;
-    if (keys.has('a')) delta.x -= PAN_SPEED;
-    if (keys.has('d')) delta.x += PAN_SPEED;
+    // Avoid per-frame Vector3 allocation: use primitive math
+    let dx = 0;
+    let dz = 0;
+    if (keys.has('w')) dz -= PAN_SPEED;
+    if (keys.has('s')) dz += PAN_SPEED;
+    if (keys.has('a')) dx -= PAN_SPEED;
+    if (keys.has('d')) dx += PAN_SPEED;
 
     const target = controlsRef.current.target as THREE.Vector3;
     const prevTX = target.x;
     const prevTZ = target.z;
-    target.x = THREE.MathUtils.clamp(target.x + delta.x, -halfW, halfW);
-    target.z = THREE.MathUtils.clamp(target.z + delta.z, -halfD, halfD);
+    target.x = THREE.MathUtils.clamp(target.x + dx, -halfW, halfW);
+    target.z = THREE.MathUtils.clamp(target.z + dz, -halfD, halfD);
     camera.position.x += target.x - prevTX;
     camera.position.z += target.z - prevTZ;
   });

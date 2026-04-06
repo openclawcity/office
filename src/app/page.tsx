@@ -1,6 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { DemoAdapter } from '@/lib/adapters/demo';
 import { PRESETS } from '@/lib/office-config';
 import type { OfficeConfig } from '@/lib/office-config';
@@ -17,10 +17,21 @@ export default function Home() {
     ...PRESETS[presetKey],
   }), [presetKey]);
 
-  const adapter = useMemo(() => new DemoAdapter(), []);
+  // FIX #1: Create adapter and clean it up on unmount
+  const adapterRef = useRef<DemoAdapter | null>(null);
+  if (!adapterRef.current) {
+    adapterRef.current = new DemoAdapter();
+  }
+  const adapter = adapterRef.current;
+
+  useEffect(() => {
+    return () => {
+      adapterRef.current?.destroy();
+      adapterRef.current = null;
+    };
+  }, []);
 
   const handleDeskClick = useCallback((deskId: string, agentId?: string) => {
-    // Future: open agent card panel
     console.log('Desk clicked:', deskId, 'agent:', agentId);
   }, []);
 
@@ -40,7 +51,10 @@ export default function Home() {
           display: 'flex', alignItems: 'center', gap: 8,
         }}
       >
+        <label htmlFor="preset-select" className="sr-only">Office preset</label>
         <select
+          id="preset-select"
+          aria-label="Office layout preset"
           value={presetKey}
           onChange={(e) => setPresetKey(e.target.value)}
           className="glass-panel"
@@ -48,7 +62,7 @@ export default function Home() {
             padding: '8px 12px', color: '#fff', cursor: 'pointer',
             fontSize: 13, border: '1px solid rgba(255,255,255,0.15)',
             background: 'rgba(10,10,20,0.85)',
-            borderRadius: 8, outline: 'none',
+            borderRadius: 8,
           }}
         >
           {PRESET_KEYS.map(k => (
@@ -57,7 +71,7 @@ export default function Home() {
             </option>
           ))}
         </select>
-        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>
+        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }} aria-hidden="true">
           WASD to navigate
         </span>
       </div>

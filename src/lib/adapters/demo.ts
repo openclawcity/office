@@ -31,7 +31,7 @@ const DEMO_ARTIFACTS: Artifact[] = [
 ];
 
 export class DemoAdapter implements OfficeAdapter {
-  private timers: ReturnType<typeof setInterval>[] = [];
+  private activeTimers = new Set<ReturnType<typeof setInterval>>();
   private agents: AgentState[];
   private chatIndex = 0;
   private destroyed = false;
@@ -43,21 +43,22 @@ export class DemoAdapter implements OfficeAdapter {
   subscribeAgents(_officeId: string, onUpdate: (agents: AgentState[]) => void): () => void {
     if (this.destroyed) return () => {};
 
-    // Emit initial state immediately
     onUpdate(this.agents.map(a => ({ ...a })));
 
-    // Cycle agent activities every 8-15 seconds
     const timer = setInterval(() => {
       if (this.destroyed) return;
-      // Pick a random agent and change its activity
       const idx = Math.floor(Math.random() * this.agents.length);
       const actIdx = Math.floor(Math.random() * ACTIVITIES.length);
       this.agents[idx] = { ...this.agents[idx], activity: ACTIVITIES[actIdx] };
       onUpdate(this.agents.map(a => ({ ...a })));
     }, 8000 + Math.random() * 7000);
 
-    this.timers.push(timer);
-    return () => clearInterval(timer);
+    this.activeTimers.add(timer);
+
+    return () => {
+      clearInterval(timer);
+      this.activeTimers.delete(timer);
+    };
   }
 
   subscribeChat(_officeId: string, onMessage: (msg: ChatMessage) => void): () => void {
@@ -67,6 +68,7 @@ export class DemoAdapter implements OfficeAdapter {
       if (this.destroyed) return;
       const line = CHAT_LINES[this.chatIndex % CHAT_LINES.length];
       const agent = this.agents[line.agent];
+      if (!agent) return; // guard against index mismatch
       onMessage({
         id: `msg-${Date.now()}`,
         agentId: agent.id,
@@ -77,8 +79,12 @@ export class DemoAdapter implements OfficeAdapter {
       this.chatIndex++;
     }, 20000 + Math.random() * 10000);
 
-    this.timers.push(timer);
-    return () => clearInterval(timer);
+    this.activeTimers.add(timer);
+
+    return () => {
+      clearInterval(timer);
+      this.activeTimers.delete(timer);
+    };
   }
 
   async sendMessage(_agentId: string, _text: string): Promise<void> {
@@ -91,7 +97,7 @@ export class DemoAdapter implements OfficeAdapter {
 
   destroy(): void {
     this.destroyed = true;
-    for (const t of this.timers) clearInterval(t);
-    this.timers = [];
+    for (const t of this.activeTimers) clearInterval(t);
+    this.activeTimers.clear();
   }
 }

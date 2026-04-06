@@ -27,11 +27,13 @@ export default function VoxelAgent({ agent, targetPosition }: VoxelAgentProps) {
   // Waypoint-based corridor movement
   const waypointsRef = useRef<[number, number, number][]>([]);
   const waypointIndexRef = useRef(0);
-  const prevTargetRef = useRef<string>('');
+  const prevTargetRef = useRef<[number, number, number]>([NaN, NaN, NaN]);
 
-  const targetKey = `${targetPosition[0]},${targetPosition[1]},${targetPosition[2]}`;
-  if (targetKey !== prevTargetRef.current) {
-    prevTargetRef.current = targetKey;
+  // Detect target change without string allocation
+  const [tx, ty, tz] = targetPosition;
+  const [px, py, pz] = prevTargetRef.current;
+  if (tx !== px || ty !== py || tz !== pz) {
+    prevTargetRef.current = targetPosition;
     const currentPos = groupRef.current
       ? [groupRef.current.position.x, groupRef.current.position.y, groupRef.current.position.z] as [number, number, number]
       : targetPosition;
