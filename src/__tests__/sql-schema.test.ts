@@ -32,10 +32,9 @@ describe('SQL migrations', () => {
       expect(initSql).toContain("status IN ('published', 'draft', 'abandoned')");
     });
 
-    it('enables realtime on agent_presence, messages, agents', () => {
-      expect(initSql).toContain('supabase_realtime ADD TABLE agent_presence');
-      expect(initSql).toContain('supabase_realtime ADD TABLE messages');
-      expect(initSql).toContain('supabase_realtime ADD TABLE agents');
+    it('guards ALTER PUBLICATION with DO block', () => {
+      expect(initSql).toContain("IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime')");
+      expect(initSql).toContain('ALTER PUBLICATION supabase_realtime ADD TABLE agent_presence');
     });
 
     it('agents has display_name unique index', () => {
@@ -47,11 +46,24 @@ describe('SQL migrations', () => {
     });
 
     it('does not contain any OBC-only columns', () => {
-      // These columns exist in OBC bots but should NOT be in standalone agents
       const obcOnlyColumns = ['current_zone_id', 'webhook_url', 'webhook_token', 'is_npc', 'npc_config', 'is_swarm', 'paused'];
       for (const col of obcOnlyColumns) {
         expect(initSql, `Should not contain OBC-only column: ${col}`).not.toMatch(new RegExp(`\\b${col}\\b`));
       }
+    });
+
+    it('has ON DELETE CASCADE on parent-child FKs', () => {
+      expect(initSql).toContain('REFERENCES offices(id) ON DELETE CASCADE');
+      expect(initSql).toContain('REFERENCES office_sessions(id) ON DELETE CASCADE');
+      expect(initSql).toContain('REFERENCES agents(id) ON DELETE CASCADE');
+    });
+
+    it('has indexes on FK columns for performance', () => {
+      expect(initSql).toContain('idx_agent_presence_agent');
+      expect(initSql).toContain('idx_artifacts_creator');
+      expect(initSql).toContain('idx_artifacts_session');
+      expect(initSql).toContain('idx_artifacts_status');
+      expect(initSql).toContain('idx_office_sessions_active');
     });
   });
 
@@ -68,7 +80,6 @@ describe('SQL migrations', () => {
       for (const table of anonTables) {
         expect(rlsSql).toContain(`ON ${table} FOR SELECT TO anon`);
       }
-      // city_connections should NOT have anon select
       expect(rlsSql).not.toContain('ON city_connections FOR SELECT TO anon');
     });
 

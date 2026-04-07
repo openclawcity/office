@@ -1,7 +1,13 @@
 # OpenClawCity Office — local development with Supabase
-# Usage: docker compose up
+#
+# Quick start:
+#   docker compose up
+#
 # Studio: http://localhost:54323
-# Office:  http://localhost:3000
+# Office:  http://localhost:3000 (run separately with npm run dev)
+# DB:      localhost:54322 (postgres/office-local-dev-password)
+#
+# For full self-hosted Supabase, see: https://supabase.com/docs/guides/self-hosting/docker
 
 services:
   supabase-db:
@@ -20,28 +26,6 @@ services:
       timeout: 5s
       retries: 5
 
-  supabase-kong:
-    image: kong:2.8.1
-    depends_on:
-      supabase-db:
-        condition: service_healthy
-    environment:
-      KONG_DATABASE: "off"
-      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
-      KONG_DNS_ORDER: LAST,A,CNAME
-      KONG_PLUGINS: request-transformer,cors,key-auth,acl
-    ports:
-      - "54321:8000"
-
-  supabase-studio:
-    image: supabase/studio:20240923-a498a30
-    ports:
-      - "54323:3000"
-    environment:
-      STUDIO_PG_META_URL: http://supabase-meta:8080
-      SUPABASE_URL: http://supabase-kong:8000
-      SUPABASE_REST_URL: http://supabase-kong:8000/rest/v1/
-
   supabase-meta:
     image: supabase/postgres-meta:v0.83.2
     depends_on:
@@ -54,6 +38,23 @@ services:
       PG_META_DB_NAME: postgres
       PG_META_DB_USER: postgres
       PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD:-office-local-dev-password}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  supabase-studio:
+    image: supabase/studio:20240923-a498a30
+    ports:
+      - "54323:3000"
+    depends_on:
+      supabase-meta:
+        condition: service_healthy
+    environment:
+      STUDIO_PG_META_URL: http://supabase-meta:8080
+      SUPABASE_URL: http://supabase-db:5432
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-office-local-dev-password}
 
 volumes:
   db-data:
