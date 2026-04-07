@@ -1,13 +1,19 @@
-import type { OfficeAdapter, AgentState, ChatMessage, Artifact, ActivityState } from '../adapter';
+import type { OfficeAdapter, AgentState, ChatMessage, Artifact, ActivityState, ActivityEntry } from '../adapter';
 
 const DEMO_AGENTS: AgentState[] = [
-  { id: 'demo-1', displayName: 'Atlas', characterType: 'agent-explorer', activity: 'working', role: 'Explorer' },
-  { id: 'demo-2', displayName: 'Nova', characterType: 'agent-scholar', activity: 'thinking', role: 'Scholar' },
-  { id: 'demo-3', displayName: 'Forge', characterType: 'agent-builder', activity: 'working', role: 'Builder' },
+  { id: 'demo-1', displayName: 'Atlas', characterType: 'agent-explorer', activity: 'working', activityMeta: { task: 'Exploring dataset patterns' }, role: 'Explorer' },
+  { id: 'demo-2', displayName: 'Nova', characterType: 'agent-scholar', activity: 'thinking', activityMeta: { task: 'Reviewing literature' }, role: 'Scholar' },
+  { id: 'demo-3', displayName: 'Forge', characterType: 'agent-builder', activity: 'working', activityMeta: { task: 'Building prototype v0.2' }, role: 'Builder' },
   { id: 'demo-4', displayName: 'Echo', characterType: 'agent-warrior', activity: null, role: 'Warrior' },
 ];
 
 const ACTIVITIES: ActivityState[] = ['working', 'thinking', 'discussing', null];
+
+const TASK_DESCRIPTIONS: Record<string, string[]> = {
+  working: ['Writing analysis report', 'Building prototype', 'Designing architecture', 'Coding feature branch', 'Preparing deliverable'],
+  thinking: ['Reviewing approach', 'Analyzing data', 'Considering alternatives', 'Evaluating tradeoffs'],
+  discussing: ['Discussing with team', 'Reviewing feedback', 'Brainstorming solutions'],
+};
 
 const CHAT_LINES = [
   { agent: 0, text: 'Found an interesting pattern in the dataset.' },
@@ -34,6 +40,7 @@ export class DemoAdapter implements OfficeAdapter {
   private activeTimers = new Set<ReturnType<typeof setInterval>>();
   private agents: AgentState[];
   private chatIndex = 0;
+  private activitySeq = 0;
   private destroyed = false;
 
   constructor() {
@@ -49,15 +56,52 @@ export class DemoAdapter implements OfficeAdapter {
       if (this.destroyed) return;
       const idx = Math.floor(Math.random() * this.agents.length);
       const actIdx = Math.floor(Math.random() * ACTIVITIES.length);
-      this.agents[idx] = { ...this.agents[idx], activity: ACTIVITIES[actIdx] };
+      const newActivity = ACTIVITIES[actIdx];
+
+      // Generate task description for activity
+      const tasks = newActivity ? TASK_DESCRIPTIONS[newActivity] : undefined;
+      const task = tasks ? tasks[Math.floor(Math.random() * tasks.length)] : undefined;
+
+      this.agents[idx] = {
+        ...this.agents[idx],
+        activity: newActivity,
+        activityMeta: task ? { task } : undefined,
+        lastMessage: undefined, // clear any previous chat
+      };
       onUpdate(this.agents.map(a => ({ ...a })));
     }, 8000 + Math.random() * 7000);
 
     this.activeTimers.add(timer);
 
+    // Simulate chat bubbles: briefly set lastMessage then clear after 6s
+    const chatTimer = setInterval(() => {
+      if (this.destroyed) return;
+      const line = CHAT_LINES[this.chatIndex % CHAT_LINES.length];
+      const agent = this.agents[line.agent];
+      if (!agent) return;
+      this.agents[line.agent] = { ...agent, lastMessage: line.text };
+      onUpdate(this.agents.map(a => ({ ...a })));
+      this.chatIndex++;
+
+      // Clear message after 6 seconds
+      const clearId = setTimeout(() => {
+        if (this.destroyed) return;
+        const current = this.agents[line.agent];
+        if (current?.lastMessage === line.text) {
+          this.agents[line.agent] = { ...current, lastMessage: undefined };
+          onUpdate(this.agents.map(a => ({ ...a })));
+        }
+      }, 6000);
+      this.activeTimers.add(clearId as unknown as ReturnType<typeof setInterval>);
+    }, 15000 + Math.random() * 10000);
+
+    this.activeTimers.add(chatTimer);
+
     return () => {
       clearInterval(timer);
+      clearInterval(chatTimer);
       this.activeTimers.delete(timer);
+      this.activeTimers.delete(chatTimer);
     };
   }
 
@@ -68,7 +112,7 @@ export class DemoAdapter implements OfficeAdapter {
       if (this.destroyed) return;
       const line = CHAT_LINES[this.chatIndex % CHAT_LINES.length];
       const agent = this.agents[line.agent];
-      if (!agent) return; // guard against index mismatch
+      if (!agent) return;
       onMessage({
         id: `msg-${Date.now()}`,
         agentId: agent.id,
@@ -76,7 +120,6 @@ export class DemoAdapter implements OfficeAdapter {
         message: line.text,
         timestamp: Date.now(),
       });
-      this.chatIndex++;
     }, 20000 + Math.random() * 10000);
 
     this.activeTimers.add(timer);
@@ -87,9 +130,41 @@ export class DemoAdapter implements OfficeAdapter {
     };
   }
 
-  async sendMessage(_agentId: string, _text: string): Promise<void> {
-    // Demo mode: no-op
+  subscribeActivity(_officeId: string, onEntry: (entry: ActivityEntry) => void): () => void {
+    if (this.destroyed) return () => {};
+
+    const timer = setInterval(() => {
+      if (this.destroyed) return;
+      const agent = this.agents[Math.floor(Math.random() * this.agents.length)];
+      const activities = ['working', 'published', 'sent_dm', 'thinking', 'searching_web'];
+      const activity = activities[Math.floor(Math.random() * activities.length)];
+      const details: Record<string, string> = {
+        working: `Working on ${agent.activityMeta?.task || 'a task'}`,
+        published: `Published: ${DEMO_ARTIFACTS[Math.floor(Math.random() * DEMO_ARTIFACTS.length)].title}`,
+        sent_dm: `DM to ${this.agents[Math.floor(Math.random() * this.agents.length)].displayName}`,
+        thinking: 'Analyzing approach',
+        searching_web: 'Searching for references',
+      };
+      this.activitySeq++;
+      onEntry({
+        id: `act-${this.activitySeq}`,
+        agentId: agent.id,
+        agentName: agent.displayName,
+        activity,
+        detail: details[activity],
+        timestamp: Date.now(),
+      });
+    }, 12000 + Math.random() * 8000);
+
+    this.activeTimers.add(timer);
+
+    return () => {
+      clearInterval(timer);
+      this.activeTimers.delete(timer);
+    };
   }
+
+  async sendMessage(_agentId: string, _text: string): Promise<void> {}
 
   async getAgentWork(agentId: string): Promise<Artifact[]> {
     return DEMO_ARTIFACTS.filter(a => a.creatorAgentId === agentId);

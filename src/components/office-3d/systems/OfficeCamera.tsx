@@ -5,6 +5,7 @@ import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 
 const PAN_SPEED = 0.12;
+const INPUT_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
 interface OfficeCameraProps {
   roomWidth: number;
@@ -21,6 +22,8 @@ export default function OfficeCamera({ roomWidth, roomDepth }: OfficeCameraProps
 
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
+      // Don't capture WASD when typing in form fields
+      if (INPUT_TAGS.has((document.activeElement?.tagName || '').toUpperCase())) return;
       if (['w', 'a', 's', 'd'].includes(e.key.toLowerCase())) {
         keysRef.current.add(e.key.toLowerCase());
       }
@@ -28,11 +31,17 @@ export default function OfficeCamera({ roomWidth, roomDepth }: OfficeCameraProps
     const onUp = (e: KeyboardEvent) => {
       keysRef.current.delete(e.key.toLowerCase());
     };
+    // Clear stuck keys when focus changes (e.g., user clicks a dropdown while holding W)
+    const onFocusIn = () => {
+      keysRef.current.clear();
+    };
     window.addEventListener('keydown', onDown);
     window.addEventListener('keyup', onUp);
+    document.addEventListener('focusin', onFocusIn);
     return () => {
       window.removeEventListener('keydown', onDown);
       window.removeEventListener('keyup', onUp);
+      document.removeEventListener('focusin', onFocusIn);
       keysRef.current.clear();
     };
   }, []);
@@ -41,7 +50,6 @@ export default function OfficeCamera({ roomWidth, roomDepth }: OfficeCameraProps
     const keys = keysRef.current;
     if (keys.size === 0 || !controlsRef.current) return;
 
-    // Avoid per-frame Vector3 allocation: use primitive math
     let dx = 0;
     let dz = 0;
     if (keys.has('w')) dz -= PAN_SPEED;

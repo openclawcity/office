@@ -1,4 +1,4 @@
-import type { OfficeAdapter, AgentState, ChatMessage, Artifact } from '../adapter';
+import type { OfficeAdapter, AgentState, ChatMessage, Artifact, ActivityEntry } from '../adapter';
 import type { SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -188,6 +188,52 @@ export class SupabaseAdapter implements OfficeAdapter {
           agentId,
           agentName,
           message: row.message as string,
+          timestamp: new Date(row.created_at as string).getTime(),
+        });
+      })
+      .subscribe();
+
+    this.channels.add(channel);
+
+    return () => {
+      this.client.removeChannel(channel);
+      this.channels.delete(channel);
+    };
+  }
+
+  subscribeActivity(_officeId: string, onEntry: (entry: ActivityEntry) => void): () => void {
+    if (this.destroyed) return () => {};
+
+    const channel = this.client
+      .channel('office-activity-log')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'activity_log',
+      }, async (payload) => {
+        if (this.destroyed) return;
+        const row = payload.new as Record<string, unknown>;
+        const agentId = row.agent_id as string;
+
+        let agentName = 'Unknown';
+        if (agentId) {
+          try {
+            const { data } = await this.client
+              .from('agents')
+              .select('display_name')
+              .eq('id', agentId)
+              .single();
+            if (data) agentName = data.display_name;
+          } catch { /* skip */ }
+        }
+
+        onEntry({
+          id: String(row.id),
+          agentId,
+          agentName,
+          activity: row.activity as string,
+          detail: (row.detail as string) ?? undefined,
+          metadata: (row.metadata as Record<string, unknown>) ?? undefined,
           timestamp: new Date(row.created_at as string).getTime(),
         });
       })
