@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
@@ -36,6 +36,11 @@ const ACTIVITY_COLORS: Record<string, string> = {
 };
 
 export default function VoxelAgent({ agent, targetPosition, onAgentClick }: VoxelAgentProps) {
+  // Reset cursor on unmount to prevent cursor leak if agent removed while hovered
+  useEffect(() => {
+    return () => { document.body.style.cursor = 'default'; };
+  }, []);
+
   const groupRef = useRef<THREE.Group>(null!);
   const leftArmRef = useRef<THREE.Group>(null!);
   const rightArmRef = useRef<THREE.Group>(null!);

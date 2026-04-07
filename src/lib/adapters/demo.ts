@@ -38,8 +38,10 @@ const DEMO_ARTIFACTS: Artifact[] = [
 
 export class DemoAdapter implements OfficeAdapter {
   private activeTimers = new Set<ReturnType<typeof setInterval>>();
+  private pendingTimeouts = new Set<ReturnType<typeof setTimeout>>();
   private agents: AgentState[];
-  private chatIndex = 0;
+  private agentChatIndex = 0;  // for subscribeAgents chat bubbles
+  private panelChatIndex = 0;  // for subscribeChat panel messages
   private activitySeq = 0;
   private destroyed = false;
 
@@ -76,15 +78,16 @@ export class DemoAdapter implements OfficeAdapter {
     // Simulate chat bubbles: briefly set lastMessage then clear after 6s
     const chatTimer = setInterval(() => {
       if (this.destroyed) return;
-      const line = CHAT_LINES[this.chatIndex % CHAT_LINES.length];
+      const line = CHAT_LINES[this.agentChatIndex % CHAT_LINES.length];
       const agent = this.agents[line.agent];
       if (!agent) return;
       this.agents[line.agent] = { ...agent, lastMessage: line.text };
       onUpdate(this.agents.map(a => ({ ...a })));
-      this.chatIndex++;
+      this.agentChatIndex++;
 
       // Clear message after 6 seconds
       const clearId = setTimeout(() => {
+        this.pendingTimeouts.delete(clearId);
         if (this.destroyed) return;
         const current = this.agents[line.agent];
         if (current?.lastMessage === line.text) {
@@ -92,7 +95,7 @@ export class DemoAdapter implements OfficeAdapter {
           onUpdate(this.agents.map(a => ({ ...a })));
         }
       }, 6000);
-      this.activeTimers.add(clearId as unknown as ReturnType<typeof setInterval>);
+      this.pendingTimeouts.add(clearId);
     }, 15000 + Math.random() * 10000);
 
     this.activeTimers.add(chatTimer);
@@ -110,7 +113,7 @@ export class DemoAdapter implements OfficeAdapter {
 
     const timer = setInterval(() => {
       if (this.destroyed) return;
-      const line = CHAT_LINES[this.chatIndex % CHAT_LINES.length];
+      const line = CHAT_LINES[this.panelChatIndex % CHAT_LINES.length];
       const agent = this.agents[line.agent];
       if (!agent) return;
       onMessage({
@@ -120,6 +123,7 @@ export class DemoAdapter implements OfficeAdapter {
         message: line.text,
         timestamp: Date.now(),
       });
+      this.panelChatIndex++;
     }, 20000 + Math.random() * 10000);
 
     this.activeTimers.add(timer);
@@ -174,5 +178,7 @@ export class DemoAdapter implements OfficeAdapter {
     this.destroyed = true;
     for (const t of this.activeTimers) clearInterval(t);
     this.activeTimers.clear();
+    for (const t of this.pendingTimeouts) clearTimeout(t);
+    this.pendingTimeouts.clear();
   }
 }
